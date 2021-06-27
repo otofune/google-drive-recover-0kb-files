@@ -50,6 +50,7 @@ INFINITY_READ:
 		if err != nil {
 			log.Fatalf("ファイル検索に失敗: %v", err)
 		}
+		fmt.Printf("# files %d found\n", len(list.Files))
 		if list.IncompleteSearch {
 			fmt.Println("Incomplete Search, break")
 			break INFINITY_READ
@@ -62,10 +63,21 @@ INFINITY_READ:
 				break INFINITY_READ
 			}
 
-			fmt.Printf("# File %s(id: %s) is empty. rev: %s\n%s\n", f.Name, f.Id, f.HeadRevisionId, f.Id)
+			fmt.Printf("# File %s(id: %s) is empty. rev: %s\n", f.Name, f.Id, f.HeadRevisionId)
 			if err := d.Revisions.Delete(f.Id, f.HeadRevisionId).Do(); err != nil {
-				log.Fatalf("revision(%s, %s) の削除に失敗した: %+v", f.Id, f.HeadRevisionId, err)
+				if strings.Contains(err.Error(), "cannotDeleteOnlyRevision") {
+					fmt.Println("# can not delete only revision. removing file")
+					if _, err := d.Files.Update(f.Id, &drive.File{
+						Trashed: true,
+					}).Do(); err != nil {
+						fmt.Printf("# failed to remove file(%s): %v\n", f.Id, err)
+					}
+					continue
+				}
+				fmt.Printf("# failed to remove revision(%s, %s): %v\n", f.Id, f.HeadRevisionId, err)
+				continue
 			}
+			fmt.Println(f.Id)
 		}
 	}
 }
